@@ -37,6 +37,7 @@ app.layout = dbc.Container([
             html.Button("Добавить поля для долготы и широты", id='add-button', n_clicks=0),
             html.Button("Удалить последнее поле", id='remove-button', n_clicks=0),
             html.Div(id='input-container'),
+            html.Div(id='add_button_feedback', style={'color': 'red'}),
             dcc.Store(id='clicks-store', data={'add': 0, 'remove': 0, 'remove_was': 0, 'add_clics_was': 0})  # Храним значения кликов
         ]) 
     ]),
@@ -118,18 +119,24 @@ def validate_latitudes(start_lat, end_lat, start_lon, end_lon):
 @app.callback(
     Output('input-container', 'children'),
     Output('clicks-store', 'data'),
+    Output('add_button_feedback', 'children'),
     Input('add-button', 'n_clicks'),
     Input('remove-button', 'n_clicks'),
     State('input-container', 'children'),
     State('clicks-store', 'data')
 )
 def update_inputs(add_clicks, remove_clicks, current_inputs, clics_data):
+
+    #Инициализируем переменную для хранения обратного сообщения
+    feedback  = ''
+
     # Инициализируем current_inputs как пустой список, если он None
     if current_inputs is None:
         current_inputs = []
 
+
     # Логика добавления полей
-    if add_clicks > clics_data['add_clics_was']:
+    if add_clicks > clics_data['add_clics_was'] and len(current_inputs) <= 4:
         clics_data['add_clics_was'] = add_clicks
         
         # Создаем два поля: одно для долготы, другое для широты
@@ -157,12 +164,18 @@ def update_inputs(add_clicks, remove_clicks, current_inputs, clics_data):
             ])
         )
 
+    elif add_clicks > clics_data['add_clics_was'] and len(current_inputs) > 4:   
+        feedback = 'Вы достигли максимального количества дополнительных полей'
+
+    elif len(current_inputs) <= 4:
+        feedback = ''
+
     # Логика удаления поля
     if remove_clicks > clics_data['remove_was'] and current_inputs:
         clics_data['remove_was'] = remove_clicks
         current_inputs.pop()  # Удаляем последнее поле
 
-    return current_inputs, clics_data  # Возвращаем обновленные данные
+    return current_inputs, clics_data, feedback  # Возвращаем обновленные данные
 
 #Валидация в добовляемых полях
 @app.callback(
