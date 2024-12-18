@@ -10,9 +10,19 @@ app.layout = dbc.Container([
     html.Div([
     html.Button("Добавить поле", id='add-button', n_clicks=0),
     html.Button("Удалить последнее поле", id='remove-button', n_clicks=0),
-    html.Div(id='input-container'),
-    dcc.Store(id='clicks-store', data={'add': 0, 'remove': 0, 'remove_was': 0, 'add_clics_was': 0})  # Храним значения кликов
-    ])    
+    
+    ]),
+
+    dbc.Row([
+        dbc.Col([
+            html.Div(id='input-container'),
+            dcc.Store(id='clicks-store', data={'add': 0, 'remove': 0, 'remove_was': 0, 'add_clics_was': 0})  # Храним значения кликов
+        ]),
+        dbc.Col([
+            dbc.CardHeader('Введите Долготу начальной точки'),
+
+        ])         
+    ]) 
 ])
 
 
