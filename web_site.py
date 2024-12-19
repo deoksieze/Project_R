@@ -253,11 +253,6 @@ def validate_inputs(longitude_values, latitude_values):
 
     return valid_longitude_states, invalid_longitude_states, valid_latitude_states, invalid_latitude_states
 
-@app.callback(
-    Input('weather-atributes', 'value')
-)
-def draw_graphs(weather_atributes):
-    print(weather_atributes)
 
 @app.callback(
     Output('min_temp_graph', 'figure'),
@@ -318,6 +313,20 @@ def draw_graphs(weather_atributes):
             humidity_fig if 'humidity_day' in weather_atributes else create_empty_figure(),
             wind_speed_fig if 'wind_speed_day' in weather_atributes else create_empty_figure(),
             rain_risk_fig if 'risk_of_rain' in weather_atributes else create_empty_figure())
+
+@app.callback(
+    Input('start-latitude', 'value'),
+    Input('end-latitude', 'value'),
+    Input('start-longitude', 'value'),
+    Input('end-longitude', 'value'),
+)
+def log_coordinates(start_lat, end_lat, start_lon, end_lon):
+    # Выводим координаты в консоль
+    print(f"Начальная широта: {start_lat}, Конечная широта: {end_lat}, "
+          f"Начальная долгота: {start_lon}, Конечная долгота: {end_lon}")
+    
+    # Возвращаем None, так как не нужно обновлять интерфейс
+    return
 
 
 
