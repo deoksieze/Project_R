@@ -4,22 +4,32 @@ from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
 import plotly.express as px
 import pandas as pd
+# from api_weather import get_weather_features
 
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-weather = {'dates': ['2024-12-19', '2024-12-20', '2024-12-21', '2024-12-22', '2024-12-23'], 
+weather1 = {'dates': ['2024-12-19', '2024-12-20', '2024-12-21', '2024-12-22', '2024-12-23'], 
            'min_temp_c': [-17.2, -8.5, 1.1, -5.8, -4.1], 
            'max_temp_c': [-10.0, -5.9, 3.1, 1.9, -1.6], 
            'humidity_day': [73, 81, 94, 85, 86], 
            'wind_speed_day': [24.1, 14.8, 16.7, 14.8, 13.0], 
            'risk_of_rain': [94, 80, 40, 11, 9]}
 
-# def generate_graphs(weather_atributes):
-#     if 'max_temp_c' in weather_atributes:
-#         fig_max_tep = 
+weather2 = {'dates': ['2024-12-19', '2024-12-20', '2024-12-21', '2024-12-22', '2024-12-23'], 
+            'min_temp_c': [-3.4, -4.6, -8.4, -6.7, -9.3], 
+            'max_temp_c': [-0.8, 7.3, -2.5, -3.1, -1.5], 
+            'humidity_day': [94, 85, 70, 63, 65], 
+            'wind_speed_day': [19.6, 25.4, 9.4, 5.5, 5.2], 
+            'risk_of_rain': [48, 14, 53, 47, 33]}
 
-# Определение макета приложения
+weather3 = [{'dates': ['2024-12-19', '2024-12-20', '2024-12-21', '2024-12-22', '2024-12-23'], 'min_temp_c': [4.4, -8.1, -4.7, -2.9, -15.6], 'max_temp_c': [4.7, -6.6, -9.6, 2.8, 5.3], 'humidity_day': [65, 59, 95, 94, 68], 'wind_speed_day': [17.3, 9.4, 20.3, 29.9, 11.6], 'risk_of_rain': [86, 75, 85, 15, 80]},
+             {'dates': ['2024-12-19', '2024-12-20', '2024-12-21', '2024-12-22', '2024-12-23'], 'min_temp_c': [-0.7, -13.0, -11.0, -8.6, -10.6], 'max_temp_c': [6.0, -6.9, 4.5, 7.7, 4.7], 'humidity_day': [88, 95, 86, 83, 55], 'wind_speed_day': [10.5, 7.8, 14.8, 23.2, 6.2], 'risk_of_rain': [81, 22, 69, 68, 88]},
+             {'dates': ['2024-12-19', '2024-12-20', '2024-12-21', '2024-12-22', '2024-12-23'], 'min_temp_c': [-17.5, -3.0, -10.7, -12.6, 3.2], 'max_temp_c': [-11.3, 4.5, -14.8, 0.0, -1.1], 'humidity_day': [52, 51, 90, 98, 94], 'wind_speed_day': [15.4, 26.8, 17.3, 7.2, 5.6], 'risk_of_rain': [44, 73, 65, 78, 62]}]
+
+weather = None
+
+
 app.layout = dbc.Container([
     html.H1('График погоды для ваших точек'),
     dbc.Row([
@@ -43,6 +53,9 @@ app.layout = dbc.Container([
         ])
     ]),
 
+    dbc.Row([
+       html.Button("Считать координаты", id='read-coordinates-button', n_clicks=0) 
+    ]),
 
     dbc.Row([
         html.Div([
@@ -85,11 +98,11 @@ app.layout = dbc.Container([
     ]),
     dbc.Row([
     dbc.Col(dcc.Graph(id='rain_risk_graph'), md=6)
-    ])
+    ]),
+    dcc.Store(id='weather-data-store'),
+
 
 ])
-
-
 
 # Функция для валидации широты
 def validate_latitude(lat_value):
@@ -264,7 +277,7 @@ def validate_inputs(longitude_values, latitude_values):
 )
 def draw_graphs(weather_atributes):
     # Создаем DataFrame из ваших данных
-    df = pd.DataFrame(weather)
+    df = weather1
 
     # Инициализируем графики как пустые
     min_temp_fig = {}
@@ -285,7 +298,7 @@ def draw_graphs(weather_atributes):
             }
         }
 
-    if weather_atributes:
+    if weather_atributes and df:
         # Проверяем, какие атрибуты выбраны и создаем соответствующие графики
         if 'min_temp_c' in weather_atributes:
             min_temp_fig = px.line(df, x='dates', y='min_temp_c', title='Минимальная температура по датам',
@@ -314,19 +327,63 @@ def draw_graphs(weather_atributes):
             wind_speed_fig if 'wind_speed_day' in weather_atributes else create_empty_figure(),
             rain_risk_fig if 'risk_of_rain' in weather_atributes else create_empty_figure())
 
+# Преобразование списка словарей в один DataFrame
+def combine_weather_data(weathers):
+    combined_data = []
+    
+    for index, weather in enumerate(weathers):
+        # Добавляем индекс точки к каждому словарю
+        weather['point_index'] = index
+        combined_data.append(pd.DataFrame(weather))
+    
+    # Объединяем все DataFrame в один
+    combined_df = pd.concat(combined_data, ignore_index=True)
+    
+    return combined_df
+
+
 @app.callback(
+    Output('weather-data-store', 'data'),
+    Input('read-coordinates-button', 'n_clicks'),
     Input('start-latitude', 'value'),
     Input('end-latitude', 'value'),
     Input('start-longitude', 'value'),
     Input('end-longitude', 'value'),
+    Input({'type': 'latitude-input', 'index': dash.dependencies.ALL}, 'value'),
+    Input({'type': 'longitude-input', 'index': dash.dependencies.ALL}, 'value'),
 )
-def log_coordinates(start_lat, end_lat, start_lon, end_lon):
-    # Выводим координаты в консоль
-    print(f"Начальная широта: {start_lat}, Конечная широта: {end_lat}, "
-          f"Начальная долгота: {start_lon}, Конечная долгота: {end_lon}")
-    
+def log_coordinates(n_clicks, start_lat, end_lat, start_lon, end_lon, additional_latitudes, additional_longitudes):
+    if n_clicks > 0:  # Проверяем, была ли нажата кнопка
+        weathers = []
+        # Выводим координаты в консоль
+        print(f"Начальная широта: {start_lat}, Конечная широта: {end_lat}, "
+              f"Начальная долгота: {start_lon}, Конечная долгота: {end_lon}")
+
+        if start_lon != None and start_lat != None:
+            weathers.append(weather1)
+
+
+
+        # Считываем дополнительные координаты
+        i = 0
+        for lat, lon in zip(additional_latitudes, additional_longitudes):
+            print(f"Дополнительная широта: {lat}, Дополнительная долгота: {lon}")
+            
+            if lat != None and lon != None:
+                weathers.append(weather3[i])
+            i+= 1
+
+        if end_lon != None and end_lat != None:
+            weathers.append(weather2)
+
+        df = combine_weather_data(weathers)
+        print(df)
+        return df.to_dict('records')
+
+
     # Возвращаем None, так как не нужно обновлять интерфейс
-    return
+    return dash.no_update
+
 
 
 
