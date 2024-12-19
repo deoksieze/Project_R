@@ -2,10 +2,22 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
+import plotly.express as px
+import pandas as pd
+
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+weather = {'dates': ['2024-12-19', '2024-12-20', '2024-12-21', '2024-12-22', '2024-12-23'], 
+           'min_temp_c': [-17.2, -8.5, 1.1, -5.8, -4.1], 
+           'max_temp_c': [-10.0, -5.9, 3.1, 1.9, -1.6], 
+           'humidity_day': [73, 81, 94, 85, 86], 
+           'wind_speed_day': [24.1, 14.8, 16.7, 14.8, 13.0], 
+           'risk_of_rain': [94, 80, 40, 11, 9]}
+
+# def generate_graphs(weather_atributes):
+#     if 'max_temp_c' in weather_atributes:
+#         fig_max_tep = 
 
 # Определение макета приложения
 app.layout = dbc.Container([
@@ -61,7 +73,20 @@ app.layout = dbc.Container([
                 )
             ])
         ]),
+    ]),
+
+    dbc.Row([
+    dbc.Col(dcc.Graph(id='min_temp_graph'), md=6),
+    dbc.Col(dcc.Graph(id='max_temp_graph'), md=6)
+    ]),
+    dbc.Row([
+    dbc.Col(dcc.Graph(id='humidity_graph'), md=6),
+    dbc.Col(dcc.Graph(id='wind_speed_graph'), md=6)
+    ]),
+    dbc.Row([
+    dbc.Col(dcc.Graph(id='rain_risk_graph'), md=6)
     ])
+
 ])
 
 
@@ -227,6 +252,74 @@ def validate_inputs(longitude_values, latitude_values):
                 invalid_latitude_states.append(True)
 
     return valid_longitude_states, invalid_longitude_states, valid_latitude_states, invalid_latitude_states
+
+@app.callback(
+    Input('weather-atributes', 'value')
+)
+def draw_graphs(weather_atributes):
+    print(weather_atributes)
+
+@app.callback(
+    Output('min_temp_graph', 'figure'),
+    Output('max_temp_graph', 'figure'),
+    Output('humidity_graph', 'figure'),
+    Output('wind_speed_graph', 'figure'),
+    Output('rain_risk_graph', 'figure'),
+    Input('weather-atributes', 'value')
+)
+def draw_graphs(weather_atributes):
+    # Создаем DataFrame из ваших данных
+    df = pd.DataFrame(weather)
+
+    # Инициализируем графики как пустые
+    min_temp_fig = {}
+    max_temp_fig = {}
+    humidity_fig = {}
+    wind_speed_fig = {}
+    rain_risk_fig = {}
+
+    # Функция для создания пустого графика
+    def create_empty_figure():
+        return {
+            'data': [],
+            'layout': {
+                'title': 'График не доступен',
+                'xaxis': {'title': 'Дата'},
+                'yaxis': {'title': 'Значение'},
+                'showlegend': False
+            }
+        }
+
+    if weather_atributes:
+        # Проверяем, какие атрибуты выбраны и создаем соответствующие графики
+        if 'min_temp_c' in weather_atributes:
+            min_temp_fig = px.line(df, x='dates', y='min_temp_c', title='Минимальная температура по датам',
+                                    labels={'dates': 'Дата', 'min_temp_c': 'Температура (C°)'}, markers=True)
+
+        if 'max_temp_c' in weather_atributes:
+            max_temp_fig = px.line(df, x='dates', y='max_temp_c', title='Максимальная температура по датам',
+                                    labels={'dates': 'Дата', 'max_temp_c': 'Температура (C°)'}, markers=True)
+
+        if 'humidity_day' in weather_atributes:
+            humidity_fig = px.line(df, x='dates', y='humidity_day', title='Влажность по датам',
+                                    labels={'dates': 'Дата', 'humidity_day': 'Влажность (%)'}, markers=True)
+
+        if 'wind_speed_day' in weather_atributes:
+            wind_speed_fig = px.line(df, x='dates', y='wind_speed_day', title='Скорость ветра по датам',
+                                      labels={'dates': 'Дата', 'wind_speed_day': 'Скорость ветра (км/ч)'}, markers=True)
+
+        if 'risk_of_rain' in weather_atributes:
+            rain_risk_fig = px.line(df, x='dates', y='risk_of_rain', title='Риск дождя по датам',
+                                     labels={'dates': 'Дата', 'risk_of_rain': 'Риск дождя (%)'}, markers=True)
+
+    # Если атрибут не выбран, возвращаем пустой график
+    return (min_temp_fig if 'min_temp_c' in weather_atributes else create_empty_figure(),
+            max_temp_fig if 'max_temp_c' in weather_atributes else create_empty_figure(),
+            humidity_fig if 'humidity_day' in weather_atributes else create_empty_figure(),
+            wind_speed_fig if 'wind_speed_day' in weather_atributes else create_empty_figure(),
+            rain_risk_fig if 'risk_of_rain' in weather_atributes else create_empty_figure())
+
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
