@@ -71,7 +71,7 @@ def get_weather_features(latitude, longitude):
     # Вероятность дождя (используем дневные данные)
     precipitation_probability = [day['Day']['PrecipitationProbability'] for day in daily_forecast]
 
-    dates = [day['Date'] for day in daily_forecast]  
+    dates = [day['Date'].split('T')[0] for day in daily_forecast]  
 
     forecast = {
         'dates': dates,
