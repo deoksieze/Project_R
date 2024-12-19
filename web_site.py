@@ -4,6 +4,8 @@ from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
 import plotly.express as px
 import pandas as pd
+import plotly.graph_objects as go
+
 # from api_weather import get_weather_features
 
 
@@ -28,6 +30,18 @@ weather3 = [{'dates': ['2024-12-19', '2024-12-20', '2024-12-21', '2024-12-22', '
              {'dates': ['2024-12-19', '2024-12-20', '2024-12-21', '2024-12-22', '2024-12-23'], 'min_temp_c': [-17.5, -3.0, -10.7, -12.6, 3.2], 'max_temp_c': [-11.3, 4.5, -14.8, 0.0, -1.1], 'humidity_day': [52, 51, 90, 98, 94], 'wind_speed_day': [15.4, 26.8, 17.3, 7.2, 5.6], 'risk_of_rain': [44, 73, 65, 78, 62]}]
 
 weather = None
+
+# Функция для создания пустого графика
+def create_empty_figure():
+    return {
+        'data': [],
+        'layout': {
+            'title': 'График не доступен',
+            'xaxis': {'title': 'Дата'},
+            'yaxis': {'title': 'Значение'},
+            'showlegend': False
+        }
+    }
 
 
 app.layout = dbc.Container([
@@ -273,52 +287,70 @@ def validate_inputs(longitude_values, latitude_values):
     Output('humidity_graph', 'figure'),
     Output('wind_speed_graph', 'figure'),
     Output('rain_risk_graph', 'figure'),
-    Input('weather-atributes', 'value')
+    Input('weather-atributes', 'value'),
+    Input('weather-data-store', 'data')  # Получаем данные из Store
 )
-def draw_graphs(weather_atributes):
-    # Создаем DataFrame из ваших данных
-    df = weather1
+def draw_graphs(weather_atributes, weather_data):
+    if not weather_data:  # Если данных нет, возвращаем пустые графики
+        return (create_empty_figure(),) * 5
+
+    # Создаем DataFrame из данных, полученных из Store
+    df = pd.DataFrame(weather_data)
 
     # Инициализируем графики как пустые
-    min_temp_fig = {}
-    max_temp_fig = {}
-    humidity_fig = {}
-    wind_speed_fig = {}
-    rain_risk_fig = {}
+    min_temp_fig = go.Figure()
+    max_temp_fig = go.Figure()
+    humidity_fig = go.Figure()
+    wind_speed_fig = go.Figure()
+    rain_risk_fig = go.Figure()
 
-    # Функция для создания пустого графика
-    def create_empty_figure():
-        return {
-            'data': [],
-            'layout': {
-                'title': 'График не доступен',
-                'xaxis': {'title': 'Дата'},
-                'yaxis': {'title': 'Значение'},
-                'showlegend': False
-            }
-        }
+    if weather_atributes:
 
-    if weather_atributes and df:
+        color_index = 0
         # Проверяем, какие атрибуты выбраны и создаем соответствующие графики
-        if 'min_temp_c' in weather_atributes:
-            min_temp_fig = px.line(df, x='dates', y='min_temp_c', title='Минимальная температура по датам',
-                                    labels={'dates': 'Дата', 'min_temp_c': 'Температура (C°)'}, markers=True)
+        for index, point in df.groupby('point_index'):
+            if 'min_temp_c' in weather_atributes:
+                min_temp_fig.add_trace(go.Scatter(
+                    x=point['dates'],
+                    y=point['min_temp_c'],
+                    mode='lines+markers',
+                    name=index,
+                    line=dict(color=px.colors.qualitative.Plotly[color_index])
+                ))
 
-        if 'max_temp_c' in weather_atributes:
-            max_temp_fig = px.line(df, x='dates', y='max_temp_c', title='Максимальная температура по датам',
-                                    labels={'dates': 'Дата', 'max_temp_c': 'Температура (C°)'}, markers=True)
 
-        if 'humidity_day' in weather_atributes:
-            humidity_fig = px.line(df, x='dates', y='humidity_day', title='Влажность по датам',
-                                    labels={'dates': 'Дата', 'humidity_day': 'Влажность (%)'}, markers=True)
+            if 'max_temp_c' in weather_atributes:
+                max_temp_fig.add_trace(go.Scatter(
+                    x=point['dates'],
+                    y=point['max_temp_c'],
+                    mode='lines+markers',
+                    name=index,
+                ))
 
-        if 'wind_speed_day' in weather_atributes:
-            wind_speed_fig = px.line(df, x='dates', y='wind_speed_day', title='Скорость ветра по датам',
-                                      labels={'dates': 'Дата', 'wind_speed_day': 'Скорость ветра (км/ч)'}, markers=True)
+            if 'humidity_day' in weather_atributes:
+                humidity_fig.add_trace(go.Scatter(
+                    x=point['dates'],
+                    y=point['humidity_day'],
+                    mode='lines+markers',
+                    name=index,
+                ))
 
-        if 'risk_of_rain' in weather_atributes:
-            rain_risk_fig = px.line(df, x='dates', y='risk_of_rain', title='Риск дождя по датам',
-                                     labels={'dates': 'Дата', 'risk_of_rain': 'Риск дождя (%)'}, markers=True)
+            if 'wind_speed_day' in weather_atributes:
+                wind_speed_fig.add_trace(go.Scatter(
+                    x=point['dates'],
+                    y=point['wind_speed_day'],
+                    mode='lines+markers',
+                    name=index,
+                ))
+
+            if 'risk_of_rain' in weather_atributes:
+                rain_risk_fig.add_trace(go.Scatter(
+                    x=point['dates'],
+                    y=point['risk_of_rain'],
+                    mode='lines+markers',
+                    name=index,
+                ))
+            color_index += 1
 
     # Если атрибут не выбран, возвращаем пустой график
     return (min_temp_fig if 'min_temp_c' in weather_atributes else create_empty_figure(),
@@ -333,8 +365,17 @@ def combine_weather_data(weathers):
     
     for index, weather in enumerate(weathers):
         # Добавляем индекс точки к каждому словарю
-        weather['point_index'] = index
-        combined_data.append(pd.DataFrame(weather))
+        if index == 0:
+            weather['point_index'] = f'Первая точка'
+            combined_data.append(pd.DataFrame(weather))
+
+        elif index == len(weathers)-1:
+            weather['point_index'] = f'Последняя точка'
+            combined_data.append(pd.DataFrame(weather))
+        
+        else:
+            weather['point_index'] = f'Точка {index}'
+            combined_data.append(pd.DataFrame(weather))
     
     # Объединяем все DataFrame в один
     combined_df = pd.concat(combined_data, ignore_index=True)
@@ -377,7 +418,6 @@ def log_coordinates(n_clicks, start_lat, end_lat, start_lon, end_lon, additional
             weathers.append(weather2)
 
         df = combine_weather_data(weathers)
-        print(df)
         return df.to_dict('records')
 
 
