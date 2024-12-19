@@ -86,4 +86,3 @@ def get_weather_features(latitude, longitude):
 
     return forecast
 
-get_weather_features(55.76874,37.588835)

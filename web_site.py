@@ -5,9 +5,90 @@ import dash_bootstrap_components as dbc
 import plotly.express as px
 import pandas as pd
 import plotly.graph_objects as go
+import requests
 
-# from api_weather import get_weather_features
+api_key = 'fJbsbPl6eNq5DLCTjvNj19v1kSpNPgre'
+api_url_location_key = 'http://dataservice.accuweather.com/locations/v1/cities/geoposition/search'
+api_url_weather = 'http://dataservice.accuweather.com/forecasts/v1/daily/5day/'
 
+
+def get_location_key_by_coordinates(latitude, longitude):
+    #Отправляем запрес для получение location_key
+    response = requests.get(api_url_location_key, params=dict(
+        apikey=api_key,
+        q=f'{latitude},{longitude}'
+    ))
+
+    #Проверяем корректность запроса
+
+    if response.status_code == 200:
+        data = response.json()
+        if data:
+            location_key = data['Key']
+            print(f'Location Key для координат ({latitude}, {longitude}): {location_key}')
+            return location_key
+        else:
+            print('Локация не найдена.')
+            return None
+        
+    #Информируем, если произошла ошибка
+
+    else:
+        print(f'Ошибка: {response.status_code} - {response.text}')
+        return None
+    
+def get_weather_by_coordinates(latitude, longitude):
+    #Получаем location_key для нашиш коориднат с помощью http-запроса
+    location_key = get_location_key_by_coordinates(latitude, longitude)
+
+    #Проверяем получили мы ключ
+    if location_key is not None:
+        response = requests.get(f'{api_url_weather}{location_key}', params=dict(
+            apikey=api_key,
+            details = True,
+            metric = True
+        ))
+
+    #Проверяем корректность запроса
+        if response.status_code == 200:
+            data = response.json()
+            return data
+    
+    #Информируем, если произошла ошибка
+        else:
+            print(f'Ошибка: {response.status_code} - {response.text}')
+
+
+def get_weather_features(latitude, longitude):
+    #получаем информацию о погоде через http-запрос
+    weather_data = get_weather_by_coordinates(latitude, longitude)
+    daily_forecast = weather_data['DailyForecasts']
+
+    # Температура
+    min_temp_c = [day['Temperature']['Minimum']['Value'] for day in daily_forecast]
+    max_temp_c = [day['Temperature']['Maximum']['Value'] for day in daily_forecast]
+
+    # Влажность (используем дневные данные)
+    humidity_day = [day['Day']['RelativeHumidity']['Minimum'] for day in daily_forecast]
+
+    # Скорость ветра (используем дневные данные)
+    wind_speed_day = [day['Day']['Wind']['Speed']['Value'] for day in daily_forecast]
+
+    # Вероятность дождя (используем дневные данные)
+    precipitation_probability = [day['Day']['PrecipitationProbability'] for day in daily_forecast]
+
+    dates = [day['Date'].split('T')[0] for day in daily_forecast]  
+
+    forecast = {
+        'dates': dates,
+        'min_temp_c': min_temp_c,
+        'max_temp_c': max_temp_c,
+        'humidity_day': humidity_day, #Если самая низкая влажность выше порога, то точно выходить не стоит
+        'wind_speed_day': wind_speed_day, 
+        'risk_of_rain': precipitation_probability
+    }
+
+    return forecast
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -68,7 +149,11 @@ app.layout = dbc.Container([
     ]),
 
     dbc.Row([
-       html.Button("Считать координаты", id='read-coordinates-button', n_clicks=0) 
+        html.Div([
+            html.Button("Считать координаты", id='read-coordinates-button', n_clicks=0),
+            html.Div(id='count-coords-feedback', style={'color': 'red'}),
+            dcc.Store(id='count-coords-store', data={'add': 0, 'add_clics_was': 0})
+        ])
     ]),
 
     dbc.Row([
@@ -122,19 +207,19 @@ app.layout = dbc.Container([
 def validate_latitude(lat_value):
     if lat_value is None:
         return False, False, ""
-    elif -90 <= lat_value <= 90:
+    elif -90 <= lat_value <= 90 and len(str(lat_value)) >= 8:
         return True, False, ""
     else:
-        return False, True, "Некорректный ввод! Пожалуйста, введите число от -90 до 90."
+        return False, True, "Некорректный ввод! Пожалуйста, введите число от -90 до 90. С точность от 6 знаков после запятов"
 
 # Функция для валидации долготы
 def validate_longitude(long_value):
     if long_value is None:
         return False, False, ""
-    elif -180 <= long_value <= 180:
+    elif -180 <= long_value <= 180 and len(str(long_value)) >= 8:
         return True, False, ""
     else:
-        return False, True, "Некорректный ввод! Пожалуйста, введите число от -180 до 180."
+        return False, True, "Некорректный ввод! Пожалуйста, введите число от -180 до 180. С точность от 6 знаков после запятов"
     
 
 # Колбэк для валидации долготы и широты
@@ -251,7 +336,7 @@ def validate_inputs(longitude_values, latitude_values):
         else:
             try:
                 num_value = float(value)
-                if -180 <= num_value <= 180:
+                if -180 <= num_value <= 180 and len(str(num_value)) >= 8:
                     valid_longitude_states.append(True)
                     invalid_longitude_states.append(False)
                 else:
@@ -268,7 +353,7 @@ def validate_inputs(longitude_values, latitude_values):
         else:
             try:
                 num_value = float(value)
-                if -90 <= num_value <= 90:
+                if -90 <= num_value <= 90 and len(str(num_value)) >= 8:
                     valid_latitude_states.append(True)
                     invalid_latitude_states.append(False)
                 else:
@@ -374,7 +459,7 @@ def combine_weather_data(weathers):
             combined_data.append(pd.DataFrame(weather))
         
         else:
-            weather['point_index'] = f'Точка {index}'
+            weather['point_index'] = f'Дополнительная {index}'
             combined_data.append(pd.DataFrame(weather))
     
     # Объединяем все DataFrame в один
@@ -382,9 +467,20 @@ def combine_weather_data(weathers):
     
     return combined_df
 
+def valid_lat(lat):
+    if lat != None and  -90 <= lat <= 90 and len(str(lat)) >= 8:
+        return True
+    else: False
+
+def valid_lon(lon):
+    if lon != None and -180 <= lon <= 180 and len(str(lon)) >= 8:
+        return True
+    else: False
 
 @app.callback(
     Output('weather-data-store', 'data'),
+    Output('count-coords-store', 'data'),
+    Output('count-coords-feedback', 'children'),
     Input('read-coordinates-button', 'n_clicks'),
     Input('start-latitude', 'value'),
     Input('end-latitude', 'value'),
@@ -392,33 +488,51 @@ def combine_weather_data(weathers):
     Input('end-longitude', 'value'),
     Input({'type': 'latitude-input', 'index': dash.dependencies.ALL}, 'value'),
     Input({'type': 'longitude-input', 'index': dash.dependencies.ALL}, 'value'),
+    State('count-coords-store', 'data')
 )
-def log_coordinates(n_clicks, start_lat, end_lat, start_lon, end_lon, additional_latitudes, additional_longitudes):
-    if n_clicks > 0:  # Проверяем, была ли нажата кнопка
-        weathers = []
-        # Выводим координаты в консоль
-        print(f"Начальная широта: {start_lat}, Конечная широта: {end_lat}, "
-              f"Начальная долгота: {start_lon}, Конечная долгота: {end_lon}")
+def log_coordinates(n_clicks, start_lat, end_lat, start_lon, end_lon, additional_latitudes, additional_longitudes, clics_counter):
+    check_True = [valid_lat(start_lat), valid_lon(start_lon), valid_lat(end_lat), valid_lon(end_lon)]
+    for i in additional_latitudes:
+        check_True.append(valid_lat(i))
+    for i in additional_longitudes:
+        check_True.append(valid_lon(i))
+    
+    true_counter = 0
+    for i in check_True:
+        if i == True:
+            true_counter += 1
 
-        if start_lon != None and start_lat != None:
-            weathers.append(weather1)
+    if n_clicks > 0 and n_clicks > clics_counter['add_clics_was']:  # Проверяем, была ли нажата кнопка
+        if len(check_True) == true_counter:
+            clics_counter['add_clics_was'] = n_clicks
+            weathers = []
+            # Выводим координаты в консоль
+            print('БЫЛА НАЖАТА КНОПКА')
+            print(f"Начальная широта: {start_lat}, Конечная широта: {end_lat}, "
+                f"Начальная долгота: {start_lon}, Конечная долгота: {end_lon}")
+
+            if start_lon != None and start_lat != None:
+                # forecast = get_weather_features(start_lat, start_lon)
+                weathers.append(weather1)
 
 
 
-        # Считываем дополнительные координаты
-        i = 0
-        for lat, lon in zip(additional_latitudes, additional_longitudes):
-            print(f"Дополнительная широта: {lat}, Дополнительная долгота: {lon}")
-            
-            if lat != None and lon != None:
-                weathers.append(weather3[i])
-            i+= 1
+            # Считываем дополнительные координаты
+            i = 0
+            for lat, lon in zip(additional_latitudes, additional_longitudes):
+                # print(f"Дополнительная широта: {lat}, Дополнительная долгота: {lon}")
+                
+                if lat != None and lon != None:
+                    weathers.append(weather3[i])
+                i+= 1
 
-        if end_lon != None and end_lat != None:
-            weathers.append(weather2)
+            if end_lon != None and end_lat != None:
+                weathers.append(weather2)
 
-        df = combine_weather_data(weathers)
-        return df.to_dict('records')
+            df = combine_weather_data(weathers)
+            print(df)
+            return df.to_dict('records'), clics_counter, 'У вас получилось нажать кнопку'
+
 
 
     # Возвращаем None, так как не нужно обновлять интерфейс
