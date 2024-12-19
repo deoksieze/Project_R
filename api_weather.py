@@ -71,7 +71,10 @@ def get_weather_features(latitude, longitude):
     # Вероятность дождя (используем дневные данные)
     precipitation_probability = [day['Day']['PrecipitationProbability'] for day in daily_forecast]
 
+    dates = [day['Date'].split('T')[0] for day in daily_forecast]  
+
     forecast = {
+        'dates': dates,
         'min_temp_c': min_temp_c,
         'max_temp_c': max_temp_c,
         'humidity_day': humidity_day, #Если самая низкая влажность выше порога, то точно выходить не стоит
@@ -82,3 +85,5 @@ def get_weather_features(latitude, longitude):
     print(forecast)
 
     return forecast
+
+get_weather_features(55.76874,37.588835)
