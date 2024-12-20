@@ -88,6 +88,7 @@ def get_weather_features(latitude, longitude):
         'risk_of_rain': precipitation_probability
     }
 
+    print(forecast)
     return forecast
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -151,7 +152,7 @@ app.layout = dbc.Container([
     dbc.Row([
         html.Div([
             html.Button("Считать координаты", id='read-coordinates-button', n_clicks=0),
-            html.Div(id='count-coords-feedback', style={'color': 'red'}),
+            html.Div(id='count-coords-feedback', style={'color': 'green'}),
             dcc.Store(id='count-coords-store', data={'add': 0, 'add_clics_was': 0})
         ])
     ]),
@@ -210,7 +211,7 @@ def validate_latitude(lat_value):
     elif -90 <= lat_value <= 90 and len(str(lat_value)) >= 8:
         return True, False, ""
     else:
-        return False, True, "Некорректный ввод! Пожалуйста, введите число от -90 до 90. С точность от 6 знаков после запятов"
+        return False, True, "Некорректный ввод! Пожалуйста, введите число от -90 до 90. С точность от 6 знаков после запятов. Не забудье, что в градусах только 60 минут"
 
 # Функция для валидации долготы
 def validate_longitude(long_value):
@@ -219,7 +220,7 @@ def validate_longitude(long_value):
     elif -180 <= long_value <= 180 and len(str(long_value)) >= 8:
         return True, False, ""
     else:
-        return False, True, "Некорректный ввод! Пожалуйста, введите число от -180 до 180. С точность от 6 знаков после запятов"
+        return False, True, "Некорректный ввод! Пожалуйста, введите число от -180 до 180. С точность от 6 знаков после запятов. Не забудье, что в градусах только 60 минут"
     
 
 # Колбэк для валидации долготы и широты
@@ -402,6 +403,7 @@ def draw_graphs(weather_atributes, weather_data):
                     name=index,
                     line=dict(color=px.colors.qualitative.Plotly[color_index])
                 ))
+                min_temp_fig.update_layout(title='Минимальная температура (°C)')
 
 
             if 'max_temp_c' in weather_atributes:
@@ -411,6 +413,7 @@ def draw_graphs(weather_atributes, weather_data):
                     mode='lines+markers',
                     name=index,
                 ))
+                max_temp_fig.update_layout(title='Максимальная температура (°C)')
 
             if 'humidity_day' in weather_atributes:
                 humidity_fig.add_trace(go.Scatter(
@@ -419,6 +422,7 @@ def draw_graphs(weather_atributes, weather_data):
                     mode='lines+markers',
                     name=index,
                 ))
+                humidity_fig.update_layout(title='Влажность (%)')
 
             if 'wind_speed_day' in weather_atributes:
                 wind_speed_fig.add_trace(go.Scatter(
@@ -427,6 +431,8 @@ def draw_graphs(weather_atributes, weather_data):
                     mode='lines+markers',
                     name=index,
                 ))
+                wind_speed_fig.update_layout(title='Скорость ветра (м/с)')
+
 
             if 'risk_of_rain' in weather_atributes:
                 rain_risk_fig.add_trace(go.Scatter(
@@ -435,7 +441,13 @@ def draw_graphs(weather_atributes, weather_data):
                     mode='lines+markers',
                     name=index,
                 ))
+                rain_risk_fig.update_layout(title='Риск дождя (%)')
+
             color_index += 1
+
+
+    
+
 
     # Если атрибут не выбран, возвращаем пустой график
     return (min_temp_fig if 'min_temp_c' in weather_atributes else create_empty_figure(),
@@ -508,30 +520,31 @@ def log_coordinates(n_clicks, start_lat, end_lat, start_lon, end_lon, additional
             weathers = []
             # Выводим координаты в консоль
             print('БЫЛА НАЖАТА КНОПКА')
+            print(*check_True)
             print(f"Начальная широта: {start_lat}, Конечная широта: {end_lat}, "
                 f"Начальная долгота: {start_lon}, Конечная долгота: {end_lon}")
 
             if start_lon != None and start_lat != None:
-                # forecast = get_weather_features(start_lat, start_lon)
-                weathers.append(weather1)
+                forecast = get_weather_features(start_lat, start_lon)
+                weathers.append(forecast)
 
 
 
             # Считываем дополнительные координаты
-            i = 0
             for lat, lon in zip(additional_latitudes, additional_longitudes):
                 # print(f"Дополнительная широта: {lat}, Дополнительная долгота: {lon}")
                 
                 if lat != None and lon != None:
-                    weathers.append(weather3[i])
-                i+= 1
+                    forecast = get_weather_features(latitude=lat, longitude=lon)
+                    weathers.append(forecast)
 
             if end_lon != None and end_lat != None:
-                weathers.append(weather2)
+                forecast = get_weather_features(latitude=end_lat, longitude=end_lon)
+                weathers.append(forecast)
 
             df = combine_weather_data(weathers)
             print(df)
-            return df.to_dict('records'), clics_counter, 'У вас получилось нажать кнопку'
+            return df.to_dict('records'), clics_counter, 'Вы правильно ввели все коориднаты'
 
 
 
